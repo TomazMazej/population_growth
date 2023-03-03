@@ -14,7 +14,7 @@ JavaScript program that demonstrates the growth of a population.
 * N - starting population
 * R - birth koeficient
 * S - death koeficient
-* K -koeficient
+* K - koeficient
 
 
 ## Pictures
