@@ -18,4 +18,4 @@ JavaScript program that demonstrates the growth of a population.
 
 
 ## Pictures
-![Image1](/population.PNG)
+![Image1](/population.png)
