@@ -23,7 +23,7 @@ async function calculatePopulation() {
     delta = (R - S - K * N) * N;
     N = N + delta;
     drawPopulation();
-    drawGraph(data);
+    drawGraph();
     await sleep(50);
   }
 }
