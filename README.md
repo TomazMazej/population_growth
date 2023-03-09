@@ -19,3 +19,4 @@ JavaScript program that demonstrates the growth of a population.
 
 ## Pictures
 ![Image1](/pictures/population.png)
+![Image2](/pictures/evolution.png)
