@@ -6,19 +6,25 @@ const beings = [];
 const food = [];
 const winners = [];
 
+// Graph data
+const population_data = [];
+const generation_data = [];
+const energy_data = [];
+const velocity_data = [];
+const size_data = [];
+
 // Context
 var livingSpace = document.getElementById("living-space");
 var graph = document.getElementById("graph");
 var livingSpaceCtx = livingSpace.getContext("2d");
-var graphCtx = graph.getContext("2d");
 
 function start(){
-  N = 1; //Number(document.getElementById("N").value);
-  ENERGY = 10000;
-  SIZE = 30;
-  VELOCITY = 50;
-  SENSE = 0;
-  FOOD_NUM = 50; 
+  N = Number(document.getElementById("N").value);
+  ENERGY = Number(document.getElementById("ENERGY").value);
+  SIZE = Number(document.getElementById("SIZE").value);
+  VELOCITY = Number(document.getElementById("VELOCITY").value);
+  SENSE = Number(document.getElementById("SENSE").value);
+  FOOD_NUM = Number(document.getElementById("FOOD").value);
 
   initialSpawn();
   lifeCycle();
@@ -26,14 +32,16 @@ function start(){
 
 async function lifeCycle(){
   for(var gen = 0; gen < generations; gen++){
-    console.log("GEN:" + gen);
+    generation_data.push(gen);
+    population_data.push(beings.length);
     await generation();
-    if(winners.length == 0){ // No survivors
-      console.log("END");
+    if(winners.length == 0){ // No survivors - END
       break;
     }
     copyArray();
     spawnFood();
+    calculateAttributes();
+    drawCharts();
   }
 }
 
@@ -68,32 +76,52 @@ async function generation(){
       await sleep(50);
 
       // Lower energy
-      beings[i].energy -= beings[i].velocity + beings[i].size + beings[i].sense;
+      beings[i].energy -= (beings[i].velocity + beings[i].size + beings[i].sense)/100;
       
       // If being is out of energy it dies
       if(beings[i].energy <= 0){
         beings.splice(i, 1);
         continue;
       }
-      
+            
       // Check if it ate food
       for (var j = 0; j < food.length; j++) {
         if(isAround(beings[i].x, food[j].x) && isAround(beings[i].y, food[j].y)){
           beings[i].food += 1;
           food.splice(j, 1);
-          console.log("FOOD");
         }
+      }
+      
+      // Check if it can eat another being
+      let eat = 0;
+      for(var k = 0; k < beings.length; k++){
+        if(i == k){ // We dont want it to eat itself
+          continue;
+        }
+        if(isAround(beings[i].x, beings[k].x) && isAround(beings[i].y, beings[k].y)){
+          if(beings[k].size < beings[i].size*0.8){ // If its 20% or more smaller
+            beings[i].food += 1;
+            eat = k;
+            break;
+          }
+        }
+      }
+      if(eat != 0){
+        beings.splice(eat, 1);
+        continue;
       }
 
       // Define winners
       if(beings[i].food > 0){
         if(isAround(beings[i].x, 0) || isAround(beings[i].x, livingSpace.width) || isAround(beings[i].y, 0) || isAround(beings[i].y, livingSpace.width)){
-          beings[i].energy = ENERGY; // Restores energy
-          winners.push(beings[i]);
           if(beings[i].food > 1){ // Multiplies
-            const being = {x:beings[i].x, y:beings[i].y, energy: ENERGY, size: SIZE, velocity: VELOCITY, sense: SENSE, food: 0};
+            const being = {x:beings[i].x, y:beings[i].y, energy: increaseRandomly(beings[i].full_energy), full_energy: ENERGY, size: increaseRandomly(beings[i].size), velocity: increaseRandomly(beings[i].velocity), sense: increaseRandomly(beings[i].sense), food: 0};
+            being.full_energy = being.energy;
             winners.push(being);
           }
+          beings[i].energy = beings[i].full_energy; // Restores energy
+          beings[i].food = 0;
+          winners.push(beings[i]);
           beings.splice(i, 1);
           continue;
         }
@@ -113,7 +141,7 @@ function initialSpawn(){
 
 function spawnBeings(){
   for (var i = 0; i < N; i++) {
-    const being = {x:0, y:Math.floor(Math.random() * livingSpace.width), energy: ENERGY, size: SIZE, velocity: VELOCITY, sense: SENSE, food: 0};
+    const being = {x:0, y:Math.floor(Math.random() * livingSpace.width), energy: ENERGY, full_energy: ENERGY, size: SIZE, velocity: VELOCITY, sense: SENSE, food: 0};
     beings.push(being);
   }
 }
@@ -124,6 +152,20 @@ function spawnFood(){
     const f = {x:Math.floor(Math.random() * livingSpace.width), y:Math.floor(Math.random() * livingSpace.width)};
     food.push(f);
   }
+}
+
+function calculateAttributes(){
+  let energy = 0;
+  let size = 0;
+  let velocity = 0;
+  for (var i = 0; i < beings.length; i++) {
+    energy += beings[i].energy;
+    size += beings[i].size;
+    velocity += beings[i].velocity;
+  }
+  energy_data.push(energy/beings.length);
+  size_data.push(size/beings.length);
+  velocity_data.push(velocity/beings.length);
 }
 
 function drawLivingSpace() {
@@ -148,6 +190,58 @@ function drawLivingSpace() {
   }
 }
 
+function drawCharts(){
+
+  new Chart("populationChart", {
+    type: "line",
+    data: {
+      labels: generation_data,
+      datasets: [{
+        label: "Population",
+        backgroundColor: "rgba(0,0,0,1.0)",
+        borderColor: "rgba(0,0,0,0.1)",
+        data: population_data
+      }]
+    },
+    options:{
+      title: {
+        display: true,
+        text: "Population growth"
+      },
+    }
+  });
+
+  new Chart("attributesChart", {
+    type: "line",
+    data: {
+      labels: generation_data,
+      datasets: [{
+        label: "Energy",
+        data: energy_data,
+        borderColor: "red",
+        fill: false
+      },{
+        label: "Velocity",
+        data: velocity_data,
+        borderColor: "green",
+        fill: false
+      },{
+        label: "Size",
+        data: size_data,
+        borderColor: "blue",
+        fill: false
+      }]
+    },
+    options: {
+      title: {
+        display: true,
+        text: "Attributes growth"
+      }
+    }
+  });
+
+}
+
 function copyArray(){
   beings.splice(0,beings.length);
   for(var i = 0; i < winners.length; i++){
@@ -158,6 +252,14 @@ function copyArray(){
 
 function isAround(num, aroundNum) {
   return Math.abs(num - aroundNum) <= 5;
+}
+
+function increaseRandomly(value) {
+  if (Math.random() < 0.5) { // 50% chance to increase
+    const randomIncrease = Math.floor(Math.random() * 41) - 20; // generate random number between -20 and 20
+    value += randomIncrease;
+  }
+  return value;
 }
 
 function sleep(ms) {
