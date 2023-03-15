@@ -7,19 +7,17 @@ const food = [];
 const winners = [];
 
 // Graph data
-const population_data = [];
 const generation_data = [];
 const aggressive_data = [];
 const peacefull_data = [];
-
 
 // Context
 var livingSpace = document.getElementById("living-space");
 var livingSpaceCtx = livingSpace.getContext("2d");
 
 function start() {
-    N = 11//Number(document.getElementById("N").value);
-    FOOD_NUM = 10//Number(document.getElementById("FOOD").value);
+    N = Number(document.getElementById("N").value);
+    FOOD_NUM = Number(document.getElementById("FOOD").value);
 
     initialSpawn();
     lifeCycle();
@@ -27,8 +25,9 @@ function start() {
 
 async function lifeCycle() {
     for (var gen = 0; gen < generations; gen++) {
+        console.log("GEN: " + gen + " BEINGS: " + beings.length);
+        calculateData();
         generation_data.push(gen);
-        population_data.push(beings.length);
         await generation();
         if (winners.length == 0) { // No survivors - END
             console.log("END")
@@ -37,32 +36,36 @@ async function lifeCycle() {
         copyArray();
         relocateBeings();
         spawnFood();
-        calculateData();
         drawCharts();
     }
 }
 
 async function generation() {
     let food_options = FOOD_NUM * 2;
-    let food_counter = 0;
-    for (var i = 0; i < beings.length; i += 2) {
+    for (var i = 0; i < beings.length; i++) {
         if (food_options == 0) { // No more food
             break;
         }
-        // Group food and beings
-        food[food_counter].being1 = beings[i];
-        beings[i].x = food[food_counter].x;
-        beings[i].y = food[food_counter].y;
-
-        if (i + 1 < beings.length) {
-            food[food_counter].being2 = beings[i + 1];
-            beings[i + 1].x = food[food_counter].x;
-            beings[i + 1].y = food[food_counter].y;
+        while(true){
+            let randomFood = Math.floor(Math.random() * FOOD_NUM);
+            if(food[randomFood].places == 2){
+                food[randomFood].being1 = beings[i];
+                beings[i].x = food[randomFood].x;
+                beings[i].y = food[randomFood].y;
+                food[randomFood].places -= 1;
+                food_options-=1;
+                break;
+            } else if(food[randomFood].places == 1){
+                food[randomFood].being2 = beings[i];
+                beings[i].x = food[randomFood].x;
+                beings[i].y = food[randomFood].y;
+                food[randomFood].places -= 1;
+                food_options-=1;
+                break;
+            }
         }
-        food_counter++;
-
         drawLivingSpace();
-        await sleep(1000);
+        await sleep(50);
     }
 
     // Situations
@@ -75,7 +78,8 @@ async function generation() {
         // Only one being - survives and replicates
         if (food[i].being1 != null && food[i].being2 == null) {
             winners.push(food[i].being1);
-            winners.push(food[i].being1);
+            let being = { x: 2, y: Math.floor(Math.random() * livingSpace.width), type: food[i].being1.type};
+            winners.push(being);
             console.log("Lone being");
             continue;
         }
@@ -96,7 +100,8 @@ async function generation() {
             if (food[i].being1.type == "aggressive") {
                 winners.push(food[i].being1); // Agressive survives
                 if (Math.random() < 0.5) { // Aggressive replicates
-                    winners.push(food[i].being1);
+                    let being = { x: 2, y: Math.floor(Math.random() * livingSpace.width), type: food[i].being1.type};
+                    winners.push(being);
                 }
                 if (Math.random() < 0.5) { // Peacefull survives
                     winners.push(food[i].being2);
@@ -104,7 +109,8 @@ async function generation() {
             } else {
                 winners.push(food[i].being2); // Agressive survives
                 if (Math.random() < 0.5) { // Aggressive replicates
-                    winners.push(food[i].being2);
+                    let being = { x: 2, y: Math.floor(Math.random() * livingSpace.width), type: food[i].being2.type};
+                    winners.push(being);
                 }
                 if (Math.random() < 0.5) { // Peacefull survives
                     winners.push(food[i].being1);
@@ -128,7 +134,7 @@ function initialSpawn() {
 
 function relocateBeings() {
     for (var i = 0; i < beings.length; i++) {
-        beings[i].x = 0;
+        beings[i].x = 2;
         beings[i].y = Math.floor(Math.random() * livingSpace.width);
     }
 }
@@ -136,12 +142,12 @@ function relocateBeings() {
 function spawnBeings() {
     for (var i = 0; i < N; i++) {
         let being_type;
-        if (Math.random() < 0.5) {
+        if (Math.random() < 0.8) {
             being_type = "aggressive"
         } else {
             being_type = "peacefull"
         }
-        const being = { x: 0, y: Math.floor(Math.random() * livingSpace.width), type: being_type, food: 0 };
+        const being = { x: 2, y: Math.floor(Math.random() * livingSpace.width), type: being_type};
         beings.push(being);
     }
 }
@@ -212,29 +218,11 @@ function drawCharts() {
         options: {
             title: {
                 display: true,
-                text: "Attributes growth"
+                text: "Population growth"
             }
         }
     });
 
-}
-
-function shuffle(array) {
-    let currentIndex = array.length, randomIndex;
-
-    // While there remain elements to shuffle.
-    while (currentIndex != 0) {
-
-        // Pick a remaining element.
-        randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex--;
-
-        // And swap it with the current element.
-        [array[currentIndex], array[randomIndex]] = [
-            array[randomIndex], array[currentIndex]];
-    }
-
-    return array;
 }
 
 function copyArray() {
