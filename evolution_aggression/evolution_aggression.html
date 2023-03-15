@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>Evolution of Aggression</title>
+    <meta charset="UTF-8">
+    <style>
+      canvas {
+        border: 1px solid black;
+      }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+  </head>
+
+  <body>
+    <canvas id="living-space" width="400" height="400"></canvas><br>
+    <canvas id="populationChart" style="width:100%;max-width:400px;"></canvas><br>
+
+    N:<input size="15px" type="number" id="N" name="N" placeholder="1">
+    FOOD:<input size="15px" type="number" id="FOOD" name="FOOD" placeholder="30"><br>
+
+    <input id="startButton" type="button" value="Start" onclick="start();" />
+    <input id="clearButton" type="button" value="Clear" onclick="clearAll();" />
+
+    <script src="evolution_aggression.js"></script>
+  </body>
+
+</html>
