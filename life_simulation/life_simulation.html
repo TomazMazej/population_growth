@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>Life simulation</title>
+    <meta charset="UTF-8">
+    <style>
+      canvas {
+        border: 1px solid black;
+      }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+  </head>
+
+  <body>
+    <canvas id="living-space" width="400" height="400"></canvas><br>
+    <canvas id="populationChart" style="width:100%;max-width:400px;"></canvas><br>
+    <canvas id="attributesChart" style="width:100%;max-width:400px;"></canvas><br>
+
+    N:<input size="15px" type="number" id="N" name="N" placeholder="1">
+    TERRAIN:<input size="15px" type="number" id="TERRAIN" name="TERRAIN" placeholder="1">
+    FOOD:<input size="15px" type="number" id="FOOD" name="FOOD" placeholder="30"><br>
+    <b>STARTING ATTRIBUTES:</b><br>
+    ENERGY:<input size="15px" type="number" id="ENERGY" name="ENERGY" placeholder="100"><br>
+    VELOCITY:<input size="15px" type="number" id="VELOCITY" name="VELOCITY" placeholder="50"><br>
+    SIZE:<input size="15px" type="number" id="SIZE" name="SIZE" placeholder="30"><br>
+    SENSE:<input size="15px" type="number" id="SENSE" name="SENSE" placeholder="0"><br>
+
+    <input id="startButton" type="button" value="Start" onclick="start();" />
+    <input id="clearButton" type="button" value="Clear" onclick="clearAll();" />
+
+    <script src="life_simulation.js"></script>
+  </body>
+
+</html>
