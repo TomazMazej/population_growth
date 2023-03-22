@@ -3,12 +3,17 @@ var generations = 100;
 var N, TERRAIN, HUNGER, THIRST, SIZE, VELOCITY, SENSE, FOOD_NUM;
 
 const beings = [];
+const winners = [];
+const death_row = [];
 const food = [];
 const lakes = [];
 
 // Graph data
 const population_data = [];
 const generation_data = [];
+const age_data = [];
+const velocity_data = [];
+const size_data = [];
 
 // Context
 var livingSpace = document.getElementById("living-space");
@@ -16,14 +21,14 @@ var graph = document.getElementById("graph");
 var livingSpaceCtx = livingSpace.getContext("2d");
 
 function start() {
-    N = 10//Number(document.getElementById("N").value);
-    HUNGER = 100//Number(document.getElementById("HUNGER").value);
-    THIRST = 100//Number(document.getElementById("THIRST").value);
-    SIZE = 30//Number(document.getElementById("SIZE").value);
-    VELOCITY = 50//Number(document.getElementById("VELOCITY").value);
-    SENSE = 0///Number(document.getElementById("SENSE").value);
-    FOOD_NUM = 50//Number(document.getElementById("FOOD").value);
-    TERRAIN = 4//Number(document.getElementById("TERRAIN").value);
+    N = Number(document.getElementById("N").value);
+    HUNGER = Number(document.getElementById("HUNGER").value);
+    THIRST = Number(document.getElementById("THIRST").value);
+    SIZE = Number(document.getElementById("SIZE").value);
+    VELOCITY = Number(document.getElementById("VELOCITY").value);
+    SENSE = Number(document.getElementById("SENSE").value);
+    FOOD_NUM = Number(document.getElementById("FOOD").value);
+    TERRAIN = Number(document.getElementById("TERRAIN").value);
 
     drawLandscape();
     spawnFood();
@@ -34,19 +39,140 @@ function start() {
 
 async function lifeCycle() {
     for (var gen = 0; gen < generations; gen++) {
+      console.log("GEN: " + gen);
         generation_data.push(gen);
         population_data.push(beings.length);
         await generation();
         if (beings.length == 0) { // No survivors - END
             break;
         }
-        //spawnFood();
-        //calculateAttributes();
-        //drawCharts();
+        copyArray();
+        spawnFood();
+        calculateAttributes();
+        drawCharts();
     }
 }
 
 async function generation() {
+  for (var year = 0; year < 30; year++) { // One year
+    if(beings.length == 0){
+      break;
+    }
+    for (var i = 0; i < beings.length; i++) {
+      // Movement of beings
+      const max = beings[i].velocity;
+      const min = -beings[i].velocity;
+      let vx = Math.floor(Math.random() * (max - min + 1)) + min;
+      let vy = Math.floor(Math.random() * (max - min + 1)) + min;
+     
+      // Move x
+      if (beings[i].x + vx < 0 || beings[i].x + vx > livingSpace.width || !isNotInLake(beings[i].x + vx, beings[i].x + vx)) {
+        beings[i].x += -vx;
+      } else{
+        beings[i].x += vx;
+      }
+     
+      // Move y
+      if (beings[i].y + vy < 0 || beings[i].y + vy > livingSpace.height || !isNotInLake(beings[i].y + vy, beings[i].y + vy)) {
+        beings[i].y += -vy;
+      } else{
+        beings[i].y += vy;
+      }
+
+      drawLivingSpace();
+      await sleep(20);
+     
+      // Lower food/water
+      if(beings[i].hunger <= 0){
+        beings[i].thirst -= (beings[i].velocity)/50;
+      } else{
+        beings[i].hunger -= (beings[i].size)/50;
+        beings[i].thirst -= (beings[i].velocity)/100;
+      }
+           
+      // Check if it ate food
+      for (var j = 0; j < food.length; j++) {
+        if(isAround(beings[i].x, food[j].x) && isAround(beings[i].y, food[j].y)){
+          beings[i].hunger = HUNGER;
+          food.splice(j, 1);
+          console.log("EAT");
+        }
+      }
+     
+      // Check if it can drink water
+      if(isOnLakeEdge(beings[i].x, beings[i].y)){
+        beings[i].thirst = THIRST;
+        console.log("DRINK WATER");
+      }
+     
+      // Check if it can eat another being or reproduce
+      for(var k = 0; k < beings.length; k++){
+        if(i == k){ // We dont want it to eat itself
+          continue;
+        }
+        if(isAround(beings[i].x, beings[k].x) && isAround(beings[i].y, beings[k].y)){
+          if(beings[i].type == "predator" && beings[k].type == "prey"){
+            beings[i].hunger = HUNGER;
+            death_row.push(k);
+            console.log("KILL");
+            break;
+          }
+          if(beings[i].type == "prey" && beings[k].type == "predator"){
+            beings[k].hunger = HUNGER;
+            death_row.push(i);
+            console.log("KILL");
+            break;
+          }
+          if((beings[i].type == beings[i].type) && ((beings[i].gender == "male" && beings[k].gender == "female") || (beings[i].gender == "female" && beings[k].gender == "male"))){ // Reproduce
+            birth(beings[i], beings[k]);
+            console.log("REPRODUCE");
+            break;
+          }
+        }
+      }
+     
+      // If being is out of water it dies
+      if(beings[i].thirst <= 0){
+        death_row.push(i);
+        console.log("OUT OF WATER");
+        continue;
+      }
+    }
+    // Remove dead beings
+    for(var d = 0; d < death_row.length; d++){
+      beings.splice(death_row[d], 1);
+    }
+    death_row.splice(0, death_row.length);
+  }
+  console.log("YEAR");
+  // Increase age
+  for (var i = 0; i < beings.length; i++) {
+    beings[i].age += 1;
+    if(beings[i].age < 10){ // If its too old, it dies.
+      winners.push(beings[i]);
+      continue;
+    }
+  }
+  return new Promise((resolve) => {
+    resolve();
+  });
+}
+
+function birth(parent1, parent2){
+  let s, v;
+  if (Math.random() < 0.5) {
+    s = parent1.size;
+  } else{
+    s = parent2.size;
+  }
+ 
+  if (Math.random() < 0.5) {
+    v = parent1.size;
+  } else{
+    v = parent2.size;
+  }
+  const being = { x: parent1.x + 6, y: parent1.y, hunger: HUNGER, thirst: THIRST, age: 0, size: increaseRandomly(s), velocity: increaseRandomly(v), sense: SENSE, gender: setGender(), type: parent1.type };
+  beings.push(being);
 }
 
 function drawLivingSpace() {
@@ -142,7 +268,7 @@ function drawBeings() {
 }
 
 function spawnFood() {
-    food.splice(0, food.length)
+    food.splice(0, food.length);
     for (var i = 0; i < FOOD_NUM; i++) {
         let foodX = Math.floor(Math.random() * livingSpace.width);
         let foodY = Math.floor(Math.random() * livingSpace.height);
@@ -165,6 +291,72 @@ function drawFood() {
     }
 }
 
+function drawCharts(){
+  new Chart("populationChart", {
+    type: "line",
+    data: {
+      labels: generation_data,
+      datasets: [{
+        label: "Population",
+        backgroundColor: "rgba(0,0,0,1.0)",
+        borderColor: "rgba(0,0,0,0.1)",
+        data: population_data
+      }]
+    },
+    options:{
+      title: {
+        display: true,
+        text: "Population growth"
+      },
+    }
+  });
+
+  new Chart("attributesChart", {
+    type: "line",
+    data: {
+      labels: generation_data,
+      datasets: [{
+        label: "Age",
+        data: age_data,
+        borderColor: "brown",
+        fill: false
+      },{
+        label: "Velocity",
+        data: velocity_data,
+        borderColor: "green",
+        fill: false
+      },{
+        label: "Size",
+        data: size_data,
+        borderColor: "yellow",
+        fill: false
+      }]
+    },
+    options: {
+      title: {
+        display: true,
+        text: "Attributes growth"
+      }
+    }
+  });
+}
+
+function calculateAttributes(){
+  let age = 0;
+  let male = 0;
+  let female = 0;
+  let size = 0;
+  let velocity = 0;
+  for (var i = 0; i < beings.length; i++) {
+    age += beings[i].age;
+    size += beings[i].size;
+    velocity += beings[i].velocity;
+  }
+  age_data.push(age/beings.length);
+  size_data.push(size/beings.length);
+  velocity_data.push(velocity/beings.length);
+}
+
 function isNotInLake(pointX, pointY) {
     for (var i = 0; i < lakes.length; i++) {
         const deltaX = (pointX - lakes[i].centerX) / lakes[i].radiusX;
@@ -177,6 +369,16 @@ function isNotInLake(pointX, pointY) {
     return true;
 }
 
+function isOnLakeEdge(pointX, pointY) {
+  for (var i = 0; i < lakes.length; i++) {
+    let distance = Math.sqrt(Math.pow(pointX - lakes[i].centerX, 2) / Math.pow(lakes[i].radiusX, 2) + Math.pow(pointY - lakes[i].centerY, 2) / Math.pow(lakes[i].radiusY, 2));
+    if(Math.abs(distance - 1) < 0.5){
+      return true;
+    }
+  }
+  return false;
+}
+
 function setGender() {
     if (Math.random() < 0.5) {
         return "male";
@@ -185,7 +387,7 @@ function setGender() {
 }
 
 function setType() {
-    if (Math.random() < 0.8) {
+    if (Math.random() < 0.7) {
         return "prey";
     }
     return "predator";
@@ -197,6 +399,14 @@ function copyArray() {
         beings.push(winners[i]);
     }
     winners.splice(0, winners.length);
+}
+
+function increaseRandomly(value) {
+  if (Math.random() < 0.5) { // 50% chance to increase
+    const randomIncrease = Math.floor(Math.random() * 41) - 20; // generate random number between -20 and 20
+    value += randomIncrease;
+  }
+  return value;
 }
 
 function isAround(num, aroundNum) {
