@@ -1,9 +1,10 @@
 // Setup variables
-var generations = 100;
+var GENERATIONS = 100;
 var N, TERRAIN, HUNGER, THIRST, SIZE, VELOCITY, SENSE, FOOD_NUM;
 
+// Arrays
 const beings = [];
-const winners = [];
+const survivors = [];
 const death_row = [];
 const food = [];
 const lakes = [];
@@ -38,15 +39,15 @@ function start() {
 }
 
 async function lifeCycle() {
-    for (var gen = 0; gen < generations; gen++) {
-      console.log("GEN: " + gen);
+    for (var gen = 0; gen < GENERATIONS; gen++) {
+        console.log("GEN: " + gen);
         generation_data.push(gen);
         population_data.push(beings.length);
-        await generation();
-        if (beings.length == 0) { // No survivors - END
+        await generation(); // Wait untill generation is finished
+        if (beings.length == 0) { // If no survivors => END
             break;
         }
-        copyArray();
+        defineSurvivors();
         spawnFood();
         calculateAttributes();
         drawCharts();
@@ -60,20 +61,20 @@ async function generation() {
     }
     for (var i = 0; i < beings.length; i++) {
       // Movement of beings
-      const max = beings[i].velocity;
-      const min = -beings[i].velocity;
-      let vx = Math.floor(Math.random() * (max - min + 1)) + min;
-      let vy = Math.floor(Math.random() * (max - min + 1)) + min;
+      const maxVelocity = beings[i].velocity;
+      const minVelocity = -beings[i].velocity;
+      let vx = Math.floor(Math.random() * (maxVelocity - minVelocity + 1)) + minVelocity;
+      let vy = Math.floor(Math.random() * (maxVelocity - minVelocity + 1)) + minVelocity;
      
       // Move x
-      if (beings[i].x + vx < 0 || beings[i].x + vx > livingSpace.width || !isNotInLake(beings[i].x + vx, beings[i].x + vx)) {
+      if (beings[i].x + vx < 0 || beings[i].x + vx > livingSpace.width || !isInLake(beings[i].x + vx, beings[i].x + vx)) {
         beings[i].x += -vx;
       } else{
         beings[i].x += vx;
       }
      
       // Move y
-      if (beings[i].y + vy < 0 || beings[i].y + vy > livingSpace.height || !isNotInLake(beings[i].y + vy, beings[i].y + vy)) {
+      if (beings[i].y + vy < 0 || beings[i].y + vy > livingSpace.height || !isInLake(beings[i].y + vy, beings[i].y + vy)) {
         beings[i].y += -vy;
       } else{
         beings[i].y += vy;
@@ -124,7 +125,7 @@ async function generation() {
             break;
           }
           if((beings[i].type == beings[i].type) && ((beings[i].gender == "male" && beings[k].gender == "female") || (beings[i].gender == "female" && beings[k].gender == "male"))){ // Reproduce
-            birth(beings[i], beings[k]);
+            reproduce(beings[i], beings[k]);
             console.log("REPRODUCE");
             break;
           }
@@ -149,7 +150,7 @@ async function generation() {
   for (var i = 0; i < beings.length; i++) {
     beings[i].age += 1;
     if(beings[i].age < 10){ // If its too old, it dies.
-      winners.push(beings[i]);
+      survivors.push(beings[i]);
       continue;
     }
   }
@@ -158,20 +159,21 @@ async function generation() {
   });
 }
 
-function birth(parent1, parent2){
-  let s, v;
+function reproduce(parent1, parent2){
+  let inheritedSize, inheritedVelocity;
+  // Inherit size
   if (Math.random() < 0.5) {
-    s = parent1.size;
+    inheritedSize = parent1.size;
   } else{
-    s = parent2.size;
+    inheritedSize = parent2.size;
   }
- 
+  // Inherit velocity
   if (Math.random() < 0.5) {
-    v = parent1.size;
+    inheritedVelocity = parent1.size;
   } else{
-    v = parent2.size;
+    inheritedVelocity = parent2.size;
   }
-  const being = { x: parent1.x + 6, y: parent1.y, hunger: HUNGER, thirst: THIRST, age: 0, size: increaseRandomly(s), velocity: increaseRandomly(v), sense: SENSE, gender: setGender(), type: parent1.type };
+  const being = { x: parent1.x + 6, y: parent1.y, hunger: HUNGER, thirst: THIRST, age: 0, size: increaseRandomly(inheritedSize), velocity: increaseRandomly(inheritedVelocity), sense: SENSE, gender: setGender(), type: parent1.type };
   beings.push(being);
 }
 
@@ -183,8 +185,8 @@ function drawLivingSpace() {
   }
 
 function drawLandscape() {
-    livingSpaceCtx.fillStyle = '#34b7eb';
-    livingSpace.style.backgroundColor = '#90d16f';
+    livingSpaceCtx.fillStyle = '#34b7eb'; // Lake color
+    livingSpace.style.backgroundColor = '#90d16f'; // Terrain color
     if (TERRAIN == 1) {
         let lake = { centerX: livingSpace.width / 2, centerY: livingSpace.height / 2, radiusX: 100, radiusY: 50 }
         livingSpaceCtx.beginPath();
@@ -244,7 +246,7 @@ function spawnBeings() {
     for (var i = 0; i < N; i++) {
         let beingX = Math.floor(Math.random() * livingSpace.width);
         let beingY = Math.floor(Math.random() * livingSpace.height);
-        while (!isNotInLake(beingX, beingY)) {
+        while (!isInLake(beingX, beingY)) {
             beingX = Math.floor(Math.random() * livingSpace.width);
             beingY = Math.floor(Math.random() * livingSpace.height);
         }
@@ -257,9 +259,9 @@ function spawnBeings() {
 function drawBeings() {
     for (var i = 0; i < beings.length; i++) {
         var being = beings[i];
-        livingSpaceCtx.fillStyle = "#087a04"; // dark green
+        livingSpaceCtx.fillStyle = "#087a04"; // Dark green
         if (being.type == "predator") {
-            livingSpaceCtx.fillStyle = "#eb0e3e"; // black
+            livingSpaceCtx.fillStyle = "#eb0e3e"; // Red
         }
         livingSpaceCtx.beginPath();
         livingSpaceCtx.arc(being.x, being.y, 3, 0, 2 * Math.PI);
@@ -272,7 +274,7 @@ function spawnFood() {
     for (var i = 0; i < FOOD_NUM; i++) {
         let foodX = Math.floor(Math.random() * livingSpace.width);
         let foodY = Math.floor(Math.random() * livingSpace.height);
-        while (!isNotInLake(foodX, foodY)) {
+        while (!isInLake(foodX, foodY)) {
             foodX = Math.floor(Math.random() * livingSpace.width);
             foodY = Math.floor(Math.random() * livingSpace.height);
         }
@@ -284,7 +286,7 @@ function spawnFood() {
 function drawFood() {
     for (var i = 0; i < food.length; i++) {
         var f = food[i];
-        livingSpaceCtx.fillStyle = "#5e340e"; // brown
+        livingSpaceCtx.fillStyle = "#5e340e"; // Brown
         livingSpaceCtx.beginPath();
         livingSpaceCtx.arc(f.x, f.y, 3, 0, 2 * Math.PI);
         livingSpaceCtx.fill();
@@ -347,6 +349,7 @@ function calculateAttributes(){
   let female = 0;
   let size = 0;
   let velocity = 0;
+  
   for (var i = 0; i < beings.length; i++) {
     age += beings[i].age;
     size += beings[i].size;
@@ -357,7 +360,7 @@ function calculateAttributes(){
   velocity_data.push(velocity/beings.length);
 }
 
-function isNotInLake(pointX, pointY) {
+function isInLake(pointX, pointY) {
     for (var i = 0; i < lakes.length; i++) {
         const deltaX = (pointX - lakes[i].centerX) / lakes[i].radiusX;
         const deltaY = (pointY - lakes[i].centerY) / lakes[i].radiusY;
@@ -393,18 +396,18 @@ function setType() {
     return "predator";
 }
 
-function copyArray() {
+function defineSurvivors() {
     beings.splice(0, beings.length);
-    for (var i = 0; i < winners.length; i++) {
-        beings.push(winners[i]);
+    for (var i = 0; i < survivors.length; i++) {
+        beings.push(survivors[i]);
     }
-    winners.splice(0, winners.length);
+    survivors.splice(0, survivors.length);
 }
 
 function increaseRandomly(value) {
   if (Math.random() < 0.5) { // 50% chance to increase
-    const randomIncrease = Math.floor(Math.random() * 41) - 20; // generate random number between -20 and 20
-    value += randomIncrease;
+    const randominVelocitycrease = Math.floor(Math.random() * 41) - 20; // Generate random number between -20 and 20
+    value += randominVelocitycrease;
   }
   return value;
 }
