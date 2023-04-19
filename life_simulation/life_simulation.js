@@ -52,6 +52,7 @@ async function lifeCycle() {
         calculateAttributes();
         drawCharts();
     }
+    saveData();
 }
 
 async function generation() {
@@ -422,4 +423,21 @@ function sleep(ms) {
 
 function clearAll() {
     window.location.reload();
+}
+
+function saveData() {
+
+  var data = {
+    population: population_data,
+    age: age_data,
+    velocity: velocity_data,
+    size: size_data,
+  }
+  var jsonData = JSON.stringify(data);
+
+  var a = document.createElement("a");
+  var file = new Blob([jsonData], {type: 'text/plain'});
+  a.href = URL.createObjectURL(file);
+  a.download = 'jsonData.txt';
+  a.click();
 }
