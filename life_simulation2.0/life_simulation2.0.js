@@ -1,12 +1,13 @@
 // Setup variables
 var GENERATIONS = 100;
-var N, TERRAIN, HUNGER, THIRST, SIZE, VELOCITY, SENSE, FOOD_NUM;
+var N, TERRAIN, HUNGER, THIRST, SIZE, VELOCITY, SENSE, FOOD_NUM, PLANTS_NUM;
 
 // Arrays
 const beings = [];
 const survivors = [];
 const death_row = [];
 const food = [];
+const plants = [];
 const lakes = [];
 
 // Graph data
@@ -29,10 +30,12 @@ function start() {
   VELOCITY = 30//Number(document.getElementById("VELOCITY").value);
   SENSE = 100//Number(document.getElementById("SENSE").value);
   FOOD_NUM = 30//Number(document.getElementById("FOOD").value);
-  TERRAIN = 2//Number(document.getElementById("TERRAIN").value);
+  PLANTS_NUM = 10//Number(document.getElementById("PLANTS").value);
+  TERRAIN = 1//Number(document.getElementById("TERRAIN").value);
 
   drawLandscape();
   spawnFood();
+  spawnPlants();
   spawnBeings();
 
   lifeCycle();
@@ -49,13 +52,54 @@ async function lifeCycle() {
     }
     defineSurvivors();
     spawnFood();
+    spawnPlants();
     calculateAttributes();
     drawCharts();
   }
   saveData();
 }
 
-function moveBeing(being) {
+async function generation() {
+  for (var year = 0; year < 30; year++) { // One year
+    if (beings.length == 0) {
+      break;
+    }
+    for (var i = 0; i < beings.length; i++) {
+      moveBeing(beings[i], i);
+      drawLivingSpace();
+      await sleep(20);
+
+      lowerNutrients(beings[i]);
+      eatFood(beings[i]);
+      drinkWater(beings[i]);
+
+      eatAnother(beings[i], i);
+      reproduce(beings[i]);
+
+      // If being is out of water it dies
+      if (beings[i].thirst <= 0) {
+        death_row.push(i);
+        console.log("OUT OF WATER");
+        continue;
+      }
+    }
+    removeDeadBeings();
+  }
+  console.log("YEAR");
+  // Increase age
+  for (var i = 0; i < beings.length; i++) {
+    beings[i].age += 1;
+    if (beings[i].age < 10) { // If its too old, it dies.
+      survivors.push(beings[i]);
+      continue;
+    }
+  }
+  return new Promise((resolve) => {
+    resolve();
+  });
+}
+
+function moveBeing(being, i) {
   const maxVelocity = being.velocity;
   const minVelocity = -being.velocity;
   let vx = Math.floor(Math.random() * (maxVelocity - minVelocity + 1)) + minVelocity;
@@ -80,7 +124,23 @@ function moveBeing(being) {
     }
     being.x += vx;
     being.y += vy;
-  } else { // Moves every where
+  } else if (being.habitat == "air") { // Moves every where
+    being.energy -= 10;
+    if (being.grounded == true) { // Replenish energy and can fly again
+      being.grounded = false;
+      being.energy = 100;
+    }
+    if (being.energy <= 0) { // Must rest
+      being.grounded = true;
+      if (!isInLake(being.x, being.y)) { // Drowns
+        death_row.push(i);
+      }
+      if (isInForest(being.x, being.y)) { // Invincible in forrest
+        being.grounded = false;
+        being.energy = 100;
+      }
+    }
+
     if (being.x + vx < 0 || being.x + vx > livingSpace.width) {
       being.x += -vx;
     } else {
@@ -119,15 +179,22 @@ function eatFood(being) {
         food.splice(j, 1);
         console.log("EAT");
       }
-    } else if (being.habitat == "water") {
-      // TODO: eat plant
     }
+  }
 
+  for (var j = 0; j < plants.length; j++) {
+    if (being.habitat == "water") {
+      if (isAround(being.x, plants[j].x) && isAround(being.y, plants[j].y)) {
+        being.hunger = HUNGER;
+        plants.splice(j, 1);
+        console.log("EAT PLANT");
+      }
+    }
   }
 }
 
 function drinkWater(being) {
-  for (var j = 0; j < food.length; j++) {
+  for (var j = 0; j < beings.length; j++) {
     if (being.habitat == "ground" || being.habitat == "air") {
       if (isOnLakeEdge(being.x, being.y)) {
         being.thirst = THIRST;
@@ -143,74 +210,68 @@ function drinkWater(being) {
   }
 }
 
-async function generation() {
-  for (var year = 0; year < 30; year++) { // One year
-    if (beings.length == 0) {
-      break;
-    }
-    for (var i = 0; i < beings.length; i++) {
-      moveBeing(beings[i]);
-      drawLivingSpace();
-      await sleep(20);
-
-      lowerNutrients(beings[i]);
-      eatFood(beings[i]);
-      drinkWater(beings[i]);
-
-      // Check if it can eat another being or reproduce
-      for (var k = 0; k < beings.length; k++) {
-        if (i == k) { // We dont want it to eat itself
-          continue;
-        }
-        if (isAround(beings[i].x, beings[k].x) && isAround(beings[i].y, beings[k].y)) {
-          if (beings[i].type == "predator" && beings[k].type == "prey") {
-            beings[i].hunger = HUNGER;
-            death_row.push(k);
-            console.log("KILL");
-            break;
-          }
-          if (beings[i].type == "prey" && beings[k].type == "predator") {
-            beings[k].hunger = HUNGER;
-            death_row.push(i);
-            console.log("KILL");
-            break;
-          }
-          if ((beings[i].type == beings[i].type) && ((beings[i].gender == "male" && beings[k].gender == "female") || (beings[i].gender == "female" && beings[k].gender == "male"))) { // Reproduce
-            reproduce(beings[i], beings[k]);
-            console.log("REPRODUCE");
-            break;
-          }
-        }
-      }
-
-      // If being is out of water it dies
-      if (beings[i].thirst <= 0) {
-        death_row.push(i);
-        console.log("OUT OF WATER");
-        continue;
-      }
-    }
-    // Remove dead beings
-    for (var d = 0; d < death_row.length; d++) {
-      beings.splice(death_row[d], 1);
-    }
-    death_row.splice(0, death_row.length);
-  }
-  console.log("YEAR");
-  // Increase age
-  for (var i = 0; i < beings.length; i++) {
-    beings[i].age += 1;
-    if (beings[i].age < 10) { // If its too old, it dies.
-      survivors.push(beings[i]);
+function eatAnother(being, i) {
+  for (var k = 0; k < beings.length; k++) {
+    if (i == k) { // We dont want it to eat itself
       continue;
     }
+    if (being.habitat == "ground") {
+      if (isAround(being.x, beings[k].x) && isAround(being.y, beings[k].y) && beings[k].grounded) {
+        if (being.type == "predator" && beings[k].type == "prey") {
+          being.hunger = HUNGER;
+          death_row.push(k);
+          console.log("KILL");
+          break;
+        }
+        if (being.type == "prey" && beings[k].type == "predator") {
+          beings[k].hunger = HUNGER;
+          death_row.push(i);
+          console.log("KILL");
+          break;
+        }
+      }
+    }
+    if (being.habitat == "air") {
+      if (isAround(being.x, beings[k].x) && isAround(being.y, beings[k].y) && beings[k].habitat != "air" && beings[k].grounded && beings[k].age < 5) {
+        being.hunger = HUNGER;
+        death_row.push(k);
+        console.log("KILL");
+        break;
+      }
+    }
   }
-  return new Promise((resolve) => {
-    resolve();
-  });
 }
 
-function reproduce(parent1, parent2) {
+function reproduce(being) {
+  for (var k = 0; k < beings.length; k++) {
+    if (isAround(being.x, beings[k].x) && isAround(being.y, beings[k].y)) {
+      if (being.habitat == "ground" && beings[k].habitat == "ground") {
+        if ((being.type == beings[k].type) && ((being.gender == "male" && beings[k].gender == "female") || (being.gender == "female" && beings[k].gender == "male"))) {
+          makeChild(being, beings[k], being.habitat);
+          console.log("REPRODUCE");
+          break;
+        }
+      }
+      else if (being.habitat == "water" && beings[k].habitat == "water") {
+        if ((!isOnLakeEdge(being.x, being.y)) && ((being.gender == "male" && beings[k].gender == "female") || (being.gender == "female" && beings[k].gender == "male"))) {
+          for (var i = 0; i < 5; i++) {
+            makeChild(being, beings[k], being.habitat);
+          }
+          console.log("REPRODUCE");
+          break;
+        }
+      } else if (being.habitat == "air" && beings[k].habitat == "air") {
+        if ((isInForest(being.x, being.y)) && ((being.gender == "male" && beings[k].gender == "female") || (being.gender == "female" && beings[k].gender == "male"))) {
+          makeChild(being, beings[k], being.habitat);
+          console.log("REPRODUCE");
+          break;
+        }
+      }
+    }
+  }
+}
+
+function makeChild(parent1, parent2, parentHabitat) {
   let inheritedSize, inheritedVelocity;
   // Inherit size
   if (Math.random() < 0.5) {
@@ -224,14 +285,28 @@ function reproduce(parent1, parent2) {
   } else {
     inheritedVelocity = parent2.size;
   }
-  const being = { x: parent1.x + 6, y: parent1.y, hunger: HUNGER, thirst: THIRST, age: 0, size: increaseRandomly(inheritedSize), velocity: increaseRandomly(inheritedVelocity), sense: SENSE, gender: setGender(), type: parent1.type };
-  beings.push(being);
+  const being = { x: parent1.x + 6, y: parent1.y, hunger: HUNGER, thirst: THIRST, age: 0, size: increaseRandomly(inheritedSize), velocity: increaseRandomly(inheritedVelocity), sense: SENSE, gender: setGender(), type: parent1.type, habitat: parent1.habitat, energy: 100, grounded: true };
+  if (parentHabitat == "water") {
+    if (Math.random() < 0.5) {
+      beings.push(being);
+    }
+  } else {
+    beings.push(being);
+  }
+}
+
+function removeDeadBeings() {
+  for (var d = 0; d < death_row.length; d++) {
+    beings.splice(death_row[d], 1);
+  }
+  death_row.splice(0, death_row.length);
 }
 
 function drawLivingSpace() {
   livingSpaceCtx.clearRect(0, 0, 400, 400);
   drawLandscape();
   drawFood();
+  drawPlants();
   drawBeings();
 }
 
@@ -243,6 +318,8 @@ function drawLandscape() {
     livingSpaceCtx.beginPath();
     livingSpaceCtx.ellipse(lake.centerX, lake.centerY, lake.radiusX, lake.radiusY, 0, 0, 2 * Math.PI);
     livingSpaceCtx.fill();
+    livingSpaceCtx.fillStyle = '#008000'; // Dark green
+    livingSpaceCtx.fillRect(0, 0, livingSpace.width, 100);
     livingSpaceCtx.stroke();
     lakes.push(lake);
   }
@@ -299,26 +376,26 @@ function spawnBeings() {
     let beingY = Math.floor(Math.random() * livingSpace.height);
 
     const randomNum = Math.floor(Math.random() * 101);
-    if (randomNum < 33) { // Ground being
+    if (randomNum < 40) { // Ground being
       while (!isInLake(beingX, beingY)) {
         beingX = Math.floor(Math.random() * livingSpace.width);
         beingY = Math.floor(Math.random() * livingSpace.height);
       }
-      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: setType(), habitat: "ground", energy: 100 };
+      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: setType(), habitat: "ground", energy: 100, grounded: true };
       beings.push(being);
-    } else if (randomNum > 33 && randomNum < 66) { // Water being
+    } else if (randomNum > 40 && randomNum < 60) { // Water being
       while (isInLake(beingX, beingY)) {
         beingX = Math.floor(Math.random() * livingSpace.width);
         beingY = Math.floor(Math.random() * livingSpace.height);
       }
-      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: "prey", habitat: "water", energy: 100 };
+      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: "prey", habitat: "water", energy: 100, grounded: false };
       beings.push(being);
     } else { // Air being
       while (!isInLake(beingX, beingY)) {
         beingX = Math.floor(Math.random() * livingSpace.width);
         beingY = Math.floor(Math.random() * livingSpace.height);
       }
-      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: "prey", habitat: "air", energy: 100 };
+      const being = { x: beingX, y: beingY, hunger: HUNGER, thirst: THIRST, age: 0, size: SIZE, velocity: VELOCITY, sense: SENSE, gender: setGender(), type: "prey", habitat: "air", energy: 100, grounded: false };
       beings.push(being);
     }
   }
@@ -329,7 +406,7 @@ function drawBeings() {
   for (var i = 0; i < beings.length; i++) {
     var being = beings[i];
     if (being.habitat == "ground") {
-      livingSpaceCtx.fillStyle = "#087a04"; // Dark green
+      livingSpaceCtx.fillStyle = "#5e340e"; // Dark green
       if (being.type == "predator") {
         livingSpaceCtx.fillStyle = "#eb0e3e"; // Red
       }
@@ -361,9 +438,33 @@ function spawnFood() {
 function drawFood() {
   for (var i = 0; i < food.length; i++) {
     var f = food[i];
-    livingSpaceCtx.fillStyle = "#5e340e"; // Brown
+    livingSpaceCtx.fillStyle = "#808000"; // Yellow
     livingSpaceCtx.beginPath();
     livingSpaceCtx.arc(f.x, f.y, 3, 0, 2 * Math.PI);
+    livingSpaceCtx.fill();
+  }
+}
+
+function spawnPlants() {
+  plants.splice(0, plants.length);
+  for (var i = 0; i < PLANTS_NUM; i++) {
+    let plantX = Math.floor(Math.random() * livingSpace.width);
+    let plantY = Math.floor(Math.random() * livingSpace.height);
+    while (isInLake(plantX, plantY)) {
+      plantX = Math.floor(Math.random() * livingSpace.width);
+      plantY = Math.floor(Math.random() * livingSpace.height);
+    }
+    plants.push({ x: plantX, y: plantY });
+  }
+  drawPlants();
+}
+
+function drawPlants() {
+  for (var i = 0; i < plants.length; i++) {
+    var p = plants[i];
+    livingSpaceCtx.fillStyle = "#90EE90"; // Light green
+    livingSpaceCtx.beginPath();
+    livingSpaceCtx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
     livingSpaceCtx.fill();
   }
 }
@@ -420,8 +521,6 @@ function drawCharts() {
 
 function calculateAttributes() {
   let age = 0;
-  let male = 0;
-  let female = 0;
   let size = 0;
   let velocity = 0;
 
@@ -445,6 +544,13 @@ function isInLake(pointX, pointY) {
     }
   }
   return true;
+}
+
+function isInForest(pointX, pointY) {
+  if (pointX >= 0 && pointX <= livingSpace.width && pointY >= 0 && pointY <= 100) {
+    return true;
+  }
+  return false;
 }
 
 function isOnLakeEdge(pointX, pointY) {
